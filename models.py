@@ -25,7 +25,7 @@ class DurationPredictor(nn.Module):
     self.norm_2 = attentions.LayerNorm(filter_channels)
     self.proj = nn.Conv1d(filter_channels, 1, 1)
 
-  def forward(self, x, x_mask):
+  def forward(self, x, x_mask, hardcoded_durs=None):
     x = self.conv_1(x * x_mask)
     x = torch.relu(x)
     x = self.norm_1(x)
@@ -35,7 +35,10 @@ class DurationPredictor(nn.Module):
     x = self.norm_2(x)
     x = self.drop(x)
     x = self.proj(x * x_mask)
-    return x * x_mask
+    if hardcoded_durs == None:
+        return x * x_mask
+    else:
+        return hardcoded_durs
 
 
 class TextEncoder(nn.Module):
@@ -91,9 +94,10 @@ class TextEncoder(nn.Module):
     self.proj_m = nn.Conv1d(hidden_channels, out_channels, 1)
     if not mean_only:
       self.proj_s = nn.Conv1d(hidden_channels, out_channels, 1)
+    
     self.proj_w = DurationPredictor(hidden_channels + gin_channels, filter_channels_dp, kernel_size, p_dropout)
   
-  def forward(self, x, x_lengths, g=None):
+  def forward(self, x, x_lengths, g=None, hardcoded_durs=None):
     x = self.emb(x) * math.sqrt(self.hidden_channels) # [b, t, h]
     x = torch.transpose(x, 1, -1) # [b, h, t]
     x_mask = torch.unsqueeze(commons.sequence_mask(x_lengths, x.size(2)), 1).to(x.dtype)
@@ -114,7 +118,7 @@ class TextEncoder(nn.Module):
     else:
       x_logs = torch.zeros_like(x_m)
 
-    logw = self.proj_w(x_dp, x_mask)
+    logw = self.proj_w(x_dp, x_mask, hardcoded_durs=hardcoded_durs)
     return x_m, x_logs, logw, x_mask
 
 
@@ -274,10 +278,10 @@ class FlowGenerator(nn.Module):
       self.emb_g = nn.Embedding(n_speakers, gin_channels)
       nn.init.uniform_(self.emb_g.weight, -0.1, 0.1)
 
-  def forward(self, x, x_lengths, y=None, y_lengths=None, g=None, gen=False, noise_scale=1., length_scale=1.):
+  def forward(self, x, x_lengths, y=None, y_lengths=None, g=None, gen=False, noise_scale=1., length_scale=1., hardcoded_durs=None):
     if g is not None:
       g = F.normalize(self.emb_g(g)).unsqueeze(-1) # [b, h]
-    x_m, x_logs, logw, x_mask = self.encoder(x, x_lengths, g=g)
+    x_m, x_logs, logw, x_mask = self.encoder(x, x_lengths, g=g, hardcoded_durs=hardcoded_durs)
 
     if gen:
       w = torch.exp(logw) * x_mask * length_scale
