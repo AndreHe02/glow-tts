@@ -283,6 +283,9 @@ class FlowGenerator(nn.Module):
       g = F.normalize(self.emb_g(g)).unsqueeze(-1) # [b, h]
     x_m, x_logs, logw, x_mask = self.encoder(x, x_lengths, g=g, hardcoded_durs=hardcoded_durs)
 
+    # we might inject LM embeddings into x_m and x_logs (logw for duration)
+    # probably just shift x_m and elementwise multiply x_logs
+
     if gen:
       w = torch.exp(logw) * x_mask * length_scale
       w_ceil = torch.ceil(w)
@@ -300,6 +303,7 @@ class FlowGenerator(nn.Module):
       z_logs = torch.matmul(attn.squeeze(1).transpose(1, 2), x_logs.transpose(1, 2)).transpose(1, 2) # [b, t', t], [b, t, d] -> [b, d, t']
       logw_ = torch.log(1e-8 + torch.sum(attn, -1)) * x_mask
 
+      # sample from N(z_m, z_logs) distribution
       z = (z_m + torch.exp(z_logs) * torch.randn_like(z_m) * noise_scale) * z_mask
       y, logdet = self.decoder(z, z_mask, g=g, reverse=True)
       return (y, z_m, z_logs, logdet, z_mask), (x_m, x_logs, x_mask), (attn, logw, logw_)
@@ -318,6 +322,12 @@ class FlowGenerator(nn.Module):
       z_logs = torch.matmul(attn.squeeze(1).transpose(1, 2), x_logs.transpose(1, 2)).transpose(1, 2) # [b, t', t], [b, t, d] -> [b, d, t']
       logw_ = torch.log(1e-8 + torch.sum(attn, -1)) * x_mask
       return (z, z_m, z_logs, logdet, z_mask), (x_m, x_logs, x_mask), (attn, logw, logw_)
+
+  def decode(self, y, y_lengths):
+    y_max_length = y.size(2)
+    z_mask = torch.unsqueeze(commons.sequence_mask(y_lengths, y_max_length), 1)
+    z, logdet = self.decoder(y, z_mask, g=None, reverse=False)
+    return z, logdet
 
   def preprocess(self, y, y_lengths, y_max_length):
     if y_max_length is not None:

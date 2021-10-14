@@ -106,7 +106,13 @@ def train(rank, epoch, hps, generator, optimizer_g, train_loader, logger, writer
     
     (z, z_m, z_logs, logdet, z_mask), (x_m, x_logs, x_mask), (attn, logw, logw_) = generator(x, x_lengths, y, y_lengths, gen=False)
     l_mle = commons.mle_loss(z, z_m, z_logs, logdet, z_mask)
+    # z_m and z_logs describe distribution of z as predicted by encoder.
+    # (copies of x_m and x_logs according to durations)
+    # z is actual sample from decoder
+    # loss computes P(z from N(z_m, z_logs))
+
     l_length = commons.duration_loss(logw, logw_, x_lengths)
+    # duration predictions vs. actual alignment
 
     loss_gs = [l_mle, l_length]
     loss_g = sum(loss_gs)

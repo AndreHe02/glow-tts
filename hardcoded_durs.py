@@ -171,7 +171,7 @@ for sent_idx, sent in enumerate(sents):
       except:
         audio = waveglow.infer(y_gen_tst, sigma=.666)
     audio = ipd.Audio(normalize_audio(audio[0].clamp(-1,1).data.cpu().float().numpy()), rate=hps.data.sampling_rate)
-    with open("/home/nickatomlin/tmp/timit-{}.wav".format(sent_idx), "wb") as infile:
+    with open("/home/nickatomlin/andrehe/tmp/timit-{}.wav".format(sent_idx), "wb") as infile:
         infile.write(audio.data)
 
 

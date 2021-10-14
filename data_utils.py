@@ -66,6 +66,9 @@ class TextMelLoader(torch.utils.data.Dataset):
         text_norm = torch.IntTensor(text_norm)
         return text_norm
 
+    def get(self, index):
+        return self.get_mel_text_pair(self.audiopaths_and_text[index]), self.audiopaths_and_text[index][1]
+
     def __getitem__(self, index):
         return self.get_mel_text_pair(self.audiopaths_and_text[index])
 
